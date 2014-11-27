@@ -455,48 +455,32 @@ static void mts_motisInitialization()
 
 + (NSDictionary*)mts_keyPaths
 {
-    static NSMutableDictionary *classKeyPaths = nil;
+    Class superClass = [self superclass];
     
-    static dispatch_once_t onceToken1;
-    dispatch_once(&onceToken1, ^{
-        classKeyPaths = [NSMutableDictionary dictionary];
-    });
+    NSMutableDictionary *dict = nil;
     
-    NSString *className = stringFromClass(self);
-    NSDictionary *keyPaths = classKeyPaths[className];
+    if ([superClass isSubclassOfClass:NSObject.class])
+        dict = [[superClass mts_keyPaths] mutableCopy];
+    else
+        dict = [NSMutableDictionary dictionary];
     
-    if (!keyPaths)
+    NSDictionary *mapping = [self mts_mapping];
+    for (NSString *key in mapping)
     {
-        Class superClass = [self superclass];
+        MTSKeyPath *keyPath = [[MTSKeyPath alloc] initWithKeyPath:key];
+        NSString *firstPath = keyPath.components[0];
         
-        NSMutableDictionary *dict = nil;
-        
-        if ([superClass isSubclassOfClass:NSObject.class])
-            dict = [[superClass mts_keyPaths] mutableCopy];
-        else
-            dict = [NSMutableDictionary dictionary];
-        
-        NSDictionary *mapping = [self mts_mapping];
-        for (NSString *key in mapping)
+        NSMutableArray *listOfKeyPaths = dict[firstPath];
+        if (!listOfKeyPaths)
         {
-            MTSKeyPath *keyPath = [[MTSKeyPath alloc] initWithKeyPath:key];
-            NSString *firstPath = keyPath.components[0];
-            
-            NSMutableArray *listOfKeyPaths = dict[firstPath];
-            if (!listOfKeyPaths)
-            {
-                listOfKeyPaths = [NSMutableArray array];
-                dict[firstPath] = listOfKeyPaths;
-            }
-            
-            [listOfKeyPaths addObject:keyPath];
+            listOfKeyPaths = [NSMutableArray array];
+            dict[firstPath] = listOfKeyPaths;
         }
         
-        keyPaths = [dict copy];
-        classKeyPaths[className] = keyPaths;
+        [listOfKeyPaths addObject:keyPath];
     }
     
-    return keyPaths;
+    return [dict copy];
 }
 
 - (NSString*)mts_typeAttributeForKey:(NSString*)key
