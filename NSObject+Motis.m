@@ -32,40 +32,12 @@
 
 static NSString* stringFromClass(Class theClass)
 {
-    static NSMapTable *map = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        map = [NSMapTable mapTableWithKeyOptions:NSPointerFunctionsWeakMemory valueOptions:NSPointerFunctionsStrongMemory];
-    });
-    
-    NSString *string = [map objectForKey:theClass];
-    
-    if (!string)
-    {
-        string = NSStringFromClass(theClass);
-        [map setObject:string forKey:theClass];
-    }
-    
-    return string;
+    return NSStringFromClass(theClass);
 }
 
 static Class classFromString(NSString *string)
 {
-    static NSMapTable *map = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        map = [NSMapTable mapTableWithKeyOptions:NSPointerFunctionsStrongMemory valueOptions:NSPointerFunctionsWeakMemory];
-    });
-    
-    Class theClass = [map objectForKey:string];
-    
-    if (!theClass)
-    {
-        theClass = NSClassFromString(string);
-        [map setObject:theClass forKey:string];
-    }
-    
-    return theClass;
+    return NSClassFromString(string);
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------ //
@@ -443,64 +415,40 @@ static void mts_motisInitialization()
 
 + (NSDictionary*)mts_cachedMapping
 {
-    static NSMutableDictionary *mappings = nil;
+    NSDictionary *mapping;
+
+    Class superClass = [self superclass];
     
-    static dispatch_once_t onceToken1;
-    dispatch_once(&onceToken1, ^{
-        mappings = [NSMutableDictionary dictionary];
-    });
+    NSMutableDictionary *dictionary = nil;
     
-    NSString *className = stringFromClass(self);
-    NSDictionary *mapping = mappings[className];
+    if ([superClass isSubclassOfClass:NSObject.class])
+        dictionary = [[superClass mts_cachedMapping] mutableCopy];
+    else
+        dictionary = [NSMutableDictionary dictionary];
     
-    if (!mapping)
-    {
-        Class superClass = [self superclass];
-        
-        NSMutableDictionary *dictionary = nil;
-        
-        if ([superClass isSubclassOfClass:NSObject.class])
-            dictionary = [[superClass mts_cachedMapping] mutableCopy];
-        else
-            dictionary = [NSMutableDictionary dictionary];
-        
-        [dictionary addEntriesFromDictionary:[self mts_mapping]];
-        
-        mapping = [dictionary copy];
-        mappings[className] = mapping;
-    }
+    [dictionary addEntriesFromDictionary:[self mts_mapping]];
+    
+    mapping = [dictionary copy];
 
     return mapping;
 }
 
 + (NSDictionary*)mts_cachedArrayClassMapping
 {
-    static NSMutableDictionary *arrayClassMappings = nil;
+    NSDictionary *arrayClassMapping;
+
+    Class superClass = [self superclass];
     
-    static dispatch_once_t onceToken1;
-    dispatch_once(&onceToken1, ^{
-        arrayClassMappings = [NSMutableDictionary dictionary];
-    });
+    NSMutableDictionary *mapping = nil;
     
-    NSString *className = stringFromClass(self);
-    NSDictionary *arrayClassMapping = arrayClassMappings[className];
+    if ([superClass isSubclassOfClass:NSObject.class])
+        mapping = [[superClass mts_cachedArrayClassMapping] mutableCopy];
+    else
+        mapping = [NSMutableDictionary dictionary];
     
-    if (!arrayClassMapping)
-    {
-        Class superClass = [self superclass];
-        
-        NSMutableDictionary *mapping = nil;
-        
-        if ([superClass isSubclassOfClass:NSObject.class])
-            mapping = [[superClass mts_cachedArrayClassMapping] mutableCopy];
-        else
-            mapping = [NSMutableDictionary dictionary];
-        
-        [mapping addEntriesFromDictionary:[self mts_arrayClassMapping]];
-        
-        arrayClassMapping = [mapping copy];
-        arrayClassMappings[className] = arrayClassMapping;
-    }
+    [mapping addEntriesFromDictionary:[self mts_arrayClassMapping]];
+    
+    arrayClassMapping = [mapping copy];
     
     return arrayClassMapping;
 }
@@ -553,18 +501,7 @@ static void mts_motisInitialization()
 
 - (NSString*)mts_typeAttributeForKey:(NSString*)key
 {
-    static NSMutableDictionary *typeAttributes = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        typeAttributes = [NSMutableDictionary dictionary];
-    });
-    
-    NSMutableDictionary *classTypeAttributes = typeAttributes[stringFromClass(self.class)];
-    if (!classTypeAttributes)
-    {
-        classTypeAttributes = [NSMutableDictionary dictionary];
-        typeAttributes[stringFromClass(self.class)] = classTypeAttributes;
-    }
+    NSMutableDictionary *classTypeAttributes = [NSMutableDictionary dictionary];
     
     NSString *typeAttribute = classTypeAttributes[key];
     if (typeAttribute)
@@ -588,41 +525,11 @@ static void mts_motisInitialization()
 
 - (BOOL)mts_isClassTypeTypeAttribute:(NSString*)typeAttribute
 {
-    static NSMutableDictionary *dictionary = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        dictionary = [NSMutableDictionary dictionary];
-    });
-    
-    NSNumber *isClassType = dictionary[typeAttribute];
-    if (!isClassType)
-    {
-        isClassType = @([typeAttribute hasPrefix:@"T@"] && ([typeAttribute length] > 1));
-        dictionary[typeAttribute] = isClassType;
-    }
-    
-    return isClassType.boolValue;
+    return [typeAttribute hasPrefix:@"T@"] && ([typeAttribute length] > 1);
 }
 
 - (void)mts_getClassName:(out NSString *__autoreleasing*)className protocols:(out NSArray *__autoreleasing*)protocols fromTypeAttribute:(NSString*)typeAttribute
 {
-    static NSMutableDictionary *dictionary = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        dictionary = [NSMutableDictionary dictionary];
-    });
-    
-    NSArray *array = dictionary[typeAttribute];
-    if (array)
-    {
-        if (array.count > 0)
-        {
-            *className = array[0];
-            *protocols = array[1];
-        }
-        return;
-    }
-    
     if ([self mts_isClassTypeTypeAttribute:typeAttribute])
     {
         if (typeAttribute.length < 3)
@@ -653,13 +560,6 @@ static void mts_motisInitialization()
         }
         else
             *protocols = @[];
-        
-        NSArray *array = @[*className, *protocols];
-        dictionary[typeAttribute] = array;
-    }
-    else
-    {
-        dictionary[typeAttribute] = @[];
     }
 }
 
